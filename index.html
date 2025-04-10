@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>エアホッケー</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* 画面外スクロールを防ぐ */
+            background-color: #f0f0f0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        #gameCanvas {
+            background-color: #222;
+            border: 5px solid #555;
+            position: relative;
+        }
+        .game-button {
+            position: absolute;
+            padding: 15px 30px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 20px;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s;
+            z-index: 100;
+        }
+        .game-button:hover {
+            background-color: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+        .game-button:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        #startButton, #restartButton {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .game-message {
+            position: absolute;
+            top: 30%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 28px;
+            text-align: center;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 90;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div style="position: relative;">
+        <canvas id="gameCanvas" width="480" height="640"></canvas>
+        <button id="startButton" class="game-button">ゲーム開始</button>
+        <div id="gameOverMessage" class="game-message hidden"></div>
+        <button id="restartButton" class="game-button hidden">もう一度プレイ</button>
+    </div>
+    
+    <script>
+        window.onload = function() {
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const startButton = document.getElementById('startButton');
+            const restartButton = document.getElementById('restartButton');
+            const gameOverMessage = document.getElementById('gameOverMessage');
+
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            
+            // ゲーム状態
+            let gameRunning = false;
+            const WINNING_SCORE = 10;
+
+            // パドルの設定
+            const paddleWidth = 80;
+            const paddleHeight = 20;
+            let playerPaddleX = canvasWidth / 2 - paddleWidth / 2;
+            const playerPaddleY = canvasHeight - paddleHeight - 10;
+            let opponentPaddleX = canvasWidth / 2 - paddleWidth / 2;
+            const opponentPaddleY = 10;
+
+            // パックの設定
+            const puckRadius = 15;
+            let puckX = canvasWidth / 2;
+            let puckY = canvasHeight / 2;
+            let puckSpeedX = 5;
+            let puckSpeedY = 5;
+            let speedMultiplier = 1.0; // 速度の倍率
+
+            // スコア
+            let playerScore = 0;
+            let opponentScore = 0;
+
+            // ユーザー入力
+            let touchStartX = null;
+            let playerPaddleMoving = false;
+
+            // ゲーム開始ボタン
+            startButton.addEventListener('click', startGame);
+            restartButton.addEventListener('click', restartGame);
+
+            // イベントリスナー (タッチ操作)
+            canvas.addEventListener('touchstart', (e) => {
+                if (!gameRunning) return;
+                touchStartX = e.touches[0].clientX;
+                playerPaddleMoving = true;
+            });
+
+            canvas.addEventListener('touchmove', (e) => {
+                if (!gameRunning || !playerPaddleMoving) return;
+                const touchX = e.touches[0].clientX;
+                let newPaddleX = playerPaddleX + (touchX - touchStartX);
+
+                if (newPaddleX > 0 && newPaddleX < canvasWidth - paddleWidth) {
+                    playerPaddleX = newPaddleX;
+                }
+                touchStartX = touchX;
+            });
+
+            canvas.addEventListener('touchend', () => {
+                playerPaddleMoving = false;
+            });
+
+            // マウス操作のサポートを追加
+            canvas.addEventListener('mousemove', (e) => {
+                if (!gameRunning) return;
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                
+                if (mouseX > 0 && mouseX < canvasWidth - paddleWidth) {
+                    playerPaddleX = mouseX;
+                }
+            });
+
+            function drawPaddle(x, y) {
+                ctx.fillStyle = '#eee';
+                ctx.fillRect(x, y, paddleWidth, paddleHeight);
+            }
+
+            function drawPuck() {
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(puckX, puckY, puckRadius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            function drawScore() {
+                ctx.font = '24px sans-serif';
+                ctx.fillStyle = '#fff';
+                ctx.textAlign = 'center';
+                ctx.fillText(opponentScore, canvasWidth / 2, 30);
+                ctx.fillText(playerScore, canvasWidth / 2, canvasHeight - 30);
+            }
+
+            function drawMiddleLine() {
+                ctx.strokeStyle = '#555';
+                ctx.setLineDash([10, 15]);
+                ctx.beginPath();
+                ctx.moveTo(0, canvasHeight / 2);
+                ctx.lineTo(canvasWidth, canvasHeight / 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            function updateGame() {
+                if (!gameRunning) {
+                    // ゲームが実行中でなければ、アニメーションフレームの更新のみを行う
+                    requestAnimationFrame(updateGame);
+                    return;
+                }
+
+                // パックの移動
+                puckX += puckSpeedX * speedMultiplier;
+                puckY += puckSpeedY * speedMultiplier;
+
+                // 壁との衝突
+                if (puckX + puckRadius > canvasWidth || puckX - puckRadius < 0) {
+                    puckSpeedX *= -1;
+                }
+
+                // 上下の壁との衝突 (ゴール判定)
+                if (puckY - puckRadius < 0) {
+                    playerScore++;
+                    // プレイヤーの得点に応じて速度を上げる
+                    checkScoreForSpeedIncrease(playerScore);
+                    if (playerScore >= WINNING_SCORE) {
+                        endGame("プレイヤーの勝ちです！");
+                    } else {
+                        resetPuck();
+                    }
+                } else if (puckY + puckRadius > canvasHeight) {
+                    opponentScore++;
+                    if (opponentScore >= WINNING_SCORE) {
+                        endGame("相手の勝ちです！");
+                    } else {
+                        resetPuck();
+                    }
+                }
+
+                // パドルとの衝突
+                if (
+                    puckY - puckRadius < opponentPaddleY + paddleHeight &&
+                    puckY + puckRadius > opponentPaddleY &&
+                    puckX + puckRadius > opponentPaddleX &&
+                    puckX - puckRadius < opponentPaddleX + paddleWidth
+                ) {
+                    puckSpeedY *= -1;
+                    // パドルの中央に近いほど水平方向の速度を弱める
+                    const collisionPoint = puckX - (opponentPaddleX + paddleWidth / 2);
+                    const normalizedCollisionPoint = collisionPoint / (paddleWidth / 2);
+                    const bounceAngle = normalizedCollisionPoint * Math.PI / 3; // 最大60度の角度で跳ね返る
+                    puckSpeedX = Math.sin(bounceAngle) * 5;
+                } else if (
+                    puckY + puckRadius > playerPaddleY &&
+                    puckY - puckRadius < playerPaddleY + paddleHeight &&
+                    puckX + puckRadius > playerPaddleX &&
+                    puckX - puckRadius < playerPaddleX + paddleWidth
+                ) {
+                    puckSpeedY *= -1;
+                    const collisionPoint = puckX - (playerPaddleX + paddleWidth / 2);
+                    const normalizedCollisionPoint = collisionPoint / (paddleWidth / 2);
+                    const bounceAngle = normalizedCollisionPoint * Math.PI / 3;
+                    puckSpeedX = Math.sin(bounceAngle) * 5;
+                }
+
+                // 敵パドルのAI (簡単な追跡)
+                const opponentPaddleCenter = opponentPaddleX + paddleWidth / 2;
+                if (opponentPaddleCenter < puckX - paddleWidth / 4) {
+                    opponentPaddleX += 3;
+                } else if (opponentPaddleCenter > puckX + paddleWidth / 4) {
+                    opponentPaddleX -= 3;
+                }
+                opponentPaddleX = Math.max(0, Math.min(opponentPaddleX, canvasWidth - paddleWidth));
+
+                // 描画
+                ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+                drawMiddleLine();
+                drawPaddle(playerPaddleX, playerPaddleY);
+                drawPaddle(opponentPaddleX, opponentPaddleY);
+                drawPuck();
+                drawScore();
+
+                requestAnimationFrame(updateGame);
+            }
+
+            function resetPuck() {
+                puckX = canvasWidth / 2;
+                puckY = canvasHeight / 2;
+                puckSpeedY *= -1; // サーブ権を交代
+                puckSpeedX = Math.random() > 0.5 ? 5 : -5; // 左右どちらかにランダムに発射
+            }
+            
+            function checkScoreForSpeedIncrease(score) {
+                // スコアに応じて速度を上げる
+                if (score === 3) {
+                    speedMultiplier = 1.2;
+                    showSpeedupMessage("スピードアップ！");
+                } else if (score === 5) {
+                    speedMultiplier = 1.4;
+                    showSpeedupMessage("さらにスピードアップ！");
+                } else if (score === 7) {
+                    speedMultiplier = 1.6;
+                    showSpeedupMessage("もっとスピードアップ！");
+                } else if (score === 9) {
+                    speedMultiplier = 1.8;
+                    showSpeedupMessage("最高速度！");
+                }
+            }
+            
+            function showSpeedupMessage(message) {
+                // 一時的に速度アップのメッセージを表示
+                gameOverMessage.textContent = message;
+                gameOverMessage.classList.remove('hidden');
+                
+                // 1秒後にメッセージを消す
+                setTimeout(() => {
+                    if (gameRunning) { // ゲームが続行中の場合のみ
+                        gameOverMessage.classList.add('hidden');
+                    }
+                }, 1000);
+            }
+
+            function startGame() {
+                gameRunning = true;
+                playerScore = 0;
+                opponentScore = 0;
+                speedMultiplier = 1.0; // 速度倍率をリセット
+                resetPuck();
+                startButton.classList.add('hidden');
+                restartButton.classList.add('hidden');
+                gameOverMessage.classList.add('hidden');
+            }
+
+            function restartGame() {
+                gameRunning = true;
+                playerScore = 0;
+                opponentScore = 0;
+                speedMultiplier = 1.0; // 速度倍率をリセット
+                resetPuck();
+                restartButton.classList.add('hidden');
+                gameOverMessage.classList.add('hidden');
+            }
+
+            function endGame(message) {
+                gameRunning = false;
+                gameOverMessage.textContent = message + "\nゲーム終了";
+                gameOverMessage.classList.remove('hidden');
+                restartButton.classList.remove('hidden');
+            }
+
+            // 初期描画
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            drawMiddleLine();
+            drawPaddle(playerPaddleX, playerPaddleY);
+            drawPaddle(opponentPaddleX, opponentPaddleY);
+            
+            // ゲームループ開始
+            updateGame();
+        };
+    </script>
+</body>
+</html>
