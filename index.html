@@ -72,7 +72,7 @@
         <canvas id="gameCanvas" width="320" height="480"></canvas>
         <button id="startButton" class="game-button">ゲーム開始</button>
         <div id="gameOverMessage" class="game-message hidden"></div>
-        <button id="restartButton" class="game-button hidden">もう一度プレイ</button>
+        <button id="restartButton" class="game-button hidden">リプレイ</button>
     </div>
     
     <script>
@@ -203,14 +203,14 @@
                     // プレイヤーの得点に応じて速度を上げる
                     checkScoreForSpeedIncrease(playerScore);
                     if (playerScore >= WINNING_SCORE) {
-                        endGame("あなたの勝ち！");
+                        endGame("勝ち！");
                     } else {
                         resetPuck();
                     }
                 } else if (puckY + puckRadius > canvasHeight) {
                     opponentScore++;
                     if (opponentScore >= WINNING_SCORE) {
-                        endGame("相手の勝ち！");
+                        endGame("負け！");
                     } else {
                         resetPuck();
                     }
@@ -319,7 +319,7 @@
 
             function endGame(message) {
                 gameRunning = false;
-                gameOverMessage.textContent = message + "\n～終了～";
+                gameOverMessage.textContent = message + "終了";
                 gameOverMessage.classList.remove('hidden');
                 restartButton.classList.remove('hidden');
             }
