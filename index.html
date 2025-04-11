@@ -203,14 +203,14 @@
                     // プレイヤーの得点に応じて速度を上げる
                     checkScoreForSpeedIncrease(playerScore);
                     if (playerScore >= WINNING_SCORE) {
-                        endGame("勝ち！");
+                        endGame("　勝ち！");
                     } else {
                         resetPuck();
                     }
                 } else if (puckY + puckRadius > canvasHeight) {
                     opponentScore++;
                     if (opponentScore >= WINNING_SCORE) {
-                        endGame("負け！");
+                        endGame("　負け！");
                     } else {
                         resetPuck();
                     }
