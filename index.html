@@ -203,14 +203,14 @@
                     // プレイヤーの得点に応じて速度を上げる
                     checkScoreForSpeedIncrease(playerScore);
                     if (playerScore >= WINNING_SCORE) {
-                        endGame("プレイヤーの勝ちです！");
+                        endGame("あなたの勝ち！");
                     } else {
                         resetPuck();
                     }
                 } else if (puckY + puckRadius > canvasHeight) {
                     opponentScore++;
                     if (opponentScore >= WINNING_SCORE) {
-                        endGame("相手の勝ちです！");
+                        endGame("相手の勝ち！");
                     } else {
                         resetPuck();
                     }
@@ -274,16 +274,13 @@
                 if (score === 3) {
                     speedMultiplier = 1.2;
                     showSpeedupMessage("スピードアップ！");
-                } else if (score === 5) {
+                } else if (score === 6) {
                     speedMultiplier = 1.4;
                     showSpeedupMessage("さらにスピードアップ！");
-                } else if (score === 7) {
-                    speedMultiplier = 1.6;
-                    showSpeedupMessage("もっとスピードアップ！");
                 } else if (score === 9) {
-                    speedMultiplier = 1.8;
+                    speedMultiplier = 1.6;
                     showSpeedupMessage("最高速度！");
-                }
+                } 
             }
             
             function showSpeedupMessage(message) {
@@ -322,7 +319,7 @@
 
             function endGame(message) {
                 gameRunning = false;
-                gameOverMessage.textContent = message + "\nゲーム終了";
+                gameOverMessage.textContent = message + "\n～終了～";
                 gameOverMessage.classList.remove('hidden');
                 restartButton.classList.remove('hidden');
             }
